@@ -69,7 +69,8 @@ void TurretUserControlCommand::execute()
 
     const float yawSetpoint =
         yawController->getSetpoint() +
-        userYawInputScalar * controlOperatorInterface.getTurretYawInput(turretID);
+        userYawInputScalar * controlOperatorInterface.getTurretYawInput(turretID) -
+        (drivers->remote.getWheel() / 660.0f / 89.0f);
     yawController->runController(dt, yawSetpoint);
 }
 

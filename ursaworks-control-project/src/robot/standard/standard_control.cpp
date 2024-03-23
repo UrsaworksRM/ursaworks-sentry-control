@@ -8,7 +8,8 @@
 #include "tap/drivers.hpp"
 #include "src/drivers_singleton.hpp"
 
-// #include "aruwsrc/control/agitator/velocity_agitator_subsystem.hpp"
+// #include "src/control/agitator/velocity_agitator_subsystem.hpp"
+// #include "src/control/a/example_subsystem.hpp"
 // #include "aruwsrc/control/chassis/beyblade_command.hpp"
 #include "src/control/chassis/chassis_autorotate_command.hpp"
 // #include "aruwsrc/control/client-display/client_display_command.hpp"
@@ -54,7 +55,7 @@ namespace chassis_rel
 static constexpr tap::algorithms::SmoothPidConfig YAW_PID_CONFIG = {
     .kp = 59'183.1f,
     .ki = 0.0f,
-    .kd = 5000.2f,
+    .kd = 5000.0f,
     .maxICumulative = 0.0f,
     .maxOutput = 32'000.0f,
     .tQDerivativeKalman = 1.0f,
@@ -66,7 +67,7 @@ static constexpr tap::algorithms::SmoothPidConfig YAW_PID_CONFIG = {
 };
 
 static constexpr tap::algorithms::SmoothPidConfig PITCH_PID_CONFIG = {
-    .kp = 72'183.1f,
+    .kp = 72183.1f,
     .ki = 100.0f,
     .kd = 1000.0f,
     .maxICumulative = 10.0f,
@@ -100,6 +101,11 @@ xcysrc::control::turret::TurretSubsystem turret(
 xcysrc::chassis::MecanumChassisSubsystem chassis(drivers());
 
 // VelocityAgitatorSubsystem agitator(
+//     drivers(),
+//     constants::AGITATOR_PID_CONFIG,
+//     constants::AGITATOR_CONFIG);
+
+// ExampleSubsystem agitator(
 //     drivers(),
 //     constants::AGITATOR_PID_CONFIG,
 //     constants::AGITATOR_CONFIG);
@@ -161,7 +167,7 @@ xcysrc::control::turret::user::TurretUserWorldRelativeCommand turretUserWorldRel
 
 // rotates agitator when aiming at target and within heat limit
 
-// xcysrc::control::launcher::FrictionWheelSpinRefLimitedCommand spinFrictionWheels(
+//xcysrc::control::launcher::FrictionWheelSpinRefLimitedCommand spinFrictionWheels(
 //     drivers(),
 //     &frictionWheels,
 //     15.0f,

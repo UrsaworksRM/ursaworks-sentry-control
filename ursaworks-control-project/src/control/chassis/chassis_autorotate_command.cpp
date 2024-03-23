@@ -58,6 +58,8 @@ void ChassisAutorotateCommand::updateAutorotateState()
 {
     float turretYawActualSetpointDiff = abs(yawMotor->getValidChassisMeasurementError());
 
+    
+
     if (chassisAutorotating && chassisSymmetry != ChassisSymmetry::SYMMETRICAL_NONE &&
         !yawMotor->getConfig().limitMotorAngles &&
         turretYawActualSetpointDiff > (M_PI - TURRET_YAW_SETPOINT_MEAS_DIFF_TO_APPLY_AUTOROTATION))
@@ -92,9 +94,11 @@ void ChassisAutorotateCommand::execute()
 
         float turretAngleFromCenter = yawMotor->getAngleFromCenter();
 
-        if (abs(turretAngleFromCenter) < 5) {
-            turretAngleFromCenter = 0;
+        if (turretAngleFromCenter < 500) {
+            chassisAutorotating = false;
         }
+
+        desiredRotationAverage = drivers->remote.getWheel() / 660.0F * 6000;
 
         if (chassisAutorotating)
         {

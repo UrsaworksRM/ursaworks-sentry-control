@@ -22,7 +22,7 @@
 #ifndef DRIVERS_SINGLETON_HPP_
 #define DRIVERS_SINGLETON_HPP_
 
-#include "robot/standard/standard_drivers.hpp"
+#include "src/robot/standard/standard_drivers.hpp"
 namespace xcysrc::standard
 
 /**

@@ -79,8 +79,8 @@ void MecanumChassisSubsystem::initialize()
 void MecanumChassisSubsystem::calculateOutput(float x, float y, float r, float maxWheelSpeed)
 {
     // this is the distance between the center of the chassis to the wheel
-    float chassisRotationRatio = sqrtf(
-        powf(WIDTH_BETWEEN_WHEELS_X / 2.0f, 2.0f) + powf(WIDTH_BETWEEN_WHEELS_Y / 2.0f, 2.0f));
+    float chassisRotationRatio = 1.0f;
+    // sqrtf(powf(WIDTH_BETWEEN_WHEELS_X / 2.0f, 2.0f) + powf(WIDTH_BETWEEN_WHEELS_Y / 2.0f, 2.0f));
 
     // to take into account the location of the turret so we rotate around the turret rather
     // than the center of the chassis, we calculate the offset and than multiply however
@@ -183,6 +183,7 @@ float MecanumChassisSubsystem::chassisSpeedRotationPID(float currentAngleError, 
 
     return wheelRotationSpeed;
 }
+
 
 }  // namespace chassis
 }  // namespace xcysrc

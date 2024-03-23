@@ -136,8 +136,8 @@ float ControlOperatorInterface::getChassisRInput()
 
     if (prevUpdateCounterR != updateCounter)
     {
-        chassisRInput.update(
-            -drivers->remote.getChannel(Remote::Channel::RIGHT_HORIZONTAL),
+        chassisRInput.update(-drivers->remote.getChannel(Remote::Channel::LEFT_VERTICAL),
+            //((float) (-drivers->remote.getWheel()) / 660.0f),
             currTime);
         prevUpdateCounterR = updateCounter;
     }
@@ -159,6 +159,27 @@ float ControlOperatorInterface::getChassisRInput()
         MAX_ACCELERATION_R,
         MAX_DECELERATION_R,
         static_cast<float>(dt) / 1E3);
+
+    // set led color based on value
+    if (chassisRInputRamp.getValue() > 0.0f)
+    {
+        drivers->leds.set(tap::gpio::Leds::Red, true);
+        drivers->leds.set(tap::gpio::Leds::Green, false);
+        drivers->leds.set(tap::gpio::Leds::Blue, false);
+    }
+    else if (chassisRInputRamp.getValue() < 0.0f)
+    {
+        drivers->leds.set(tap::gpio::Leds::Red, false);
+        drivers->leds.set(tap::gpio::Leds::Green, false);
+        drivers->leds.set(tap::gpio::Leds::Blue, true);
+    }
+    else
+    {
+        drivers->leds.set(tap::gpio::Leds::Red, false);
+        drivers->leds.set(tap::gpio::Leds::Green, true);
+        drivers->leds.set(tap::gpio::Leds::Blue, false);
+    }   
+
 
     return chassisRInputRamp.getValue();
 }
@@ -191,16 +212,16 @@ float ControlOperatorInterface::getTurretPitchInput(uint8_t turretID)
     switch (turretID)
     {
         case 0:
-            return -drivers->remote.getChannel(Remote::Channel::RIGHT_VERTICAL) +
+            return drivers->remote.getChannel(Remote::Channel::RIGHT_VERTICAL) +
                    static_cast<float>(limitVal<int16_t>(
-                       drivers->remote.getMouseY(),
+                       -drivers->remote.getMouseY(),
                        -USER_MOUSE_PITCH_MAX,
                        USER_MOUSE_PITCH_MAX)) *
                        USER_MOUSE_PITCH_SCALAR;
         case 1:
-            return -drivers->remote.getChannel(Remote::Channel::LEFT_VERTICAL) +
+            return drivers->remote.getChannel(Remote::Channel::LEFT_VERTICAL) +
                    static_cast<float>(limitVal<int16_t>(
-                       drivers->remote.getMouseY(),
+                       -drivers->remote.getMouseY(),
                        -USER_MOUSE_PITCH_MAX,
                        USER_MOUSE_PITCH_MAX)) *
                        USER_MOUSE_PITCH_SCALAR;

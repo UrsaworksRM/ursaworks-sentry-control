@@ -23,7 +23,7 @@
 #include "tap/drivers.hpp"
 
 
-#include "../control_operator_interface.hpp"
+#include "src/robot/control_operator_interface.hpp"
 
 namespace xcysrc::standard
 {

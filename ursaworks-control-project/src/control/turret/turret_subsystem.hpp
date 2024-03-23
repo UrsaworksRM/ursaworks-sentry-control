@@ -27,7 +27,6 @@
 #include "tap/motor/dji_motor.hpp"
 
 
-
 #include "turret_motor.hpp"
 
 #include "tap/util_macros.hpp"

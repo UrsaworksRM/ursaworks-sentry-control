@@ -20,6 +20,7 @@
     <module>taproot:communication:sensors:buzzer</module>
     <module>taproot:communication:gpio:leds</module>
     <module>taproot:communication:gpio:digital</module>
+    <module>taproot:communication:sensors:imu:bmi088</module>
     <module>taproot:build</module>
   </modules>
 </library>

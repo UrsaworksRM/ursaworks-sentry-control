@@ -45,10 +45,10 @@ public:
     void initialize() override;
     void setDesiredOutput(float x, float y, float r);
     inline int getNumChassisMotors() const override { return MODM_ARRAY_SIZE(motors); }
-    inline int16_t getLeftFrontRpmActual() const override { return leftFrontMotor.getShaftRPM(); }
-    inline int16_t getLeftBackRpmActual() const override { return leftBackMotor.getShaftRPM(); }
-    inline int16_t getRightFrontRpmActual() const override { return rightFrontMotor.getShaftRPM(); }
-    inline int16_t getRightBackRpmActual() const override { return rightBackMotor.getShaftRPM(); }
+    inline int16_t getLeftFrontRpmActual() const  { return leftFrontMotor.getShaftRPM(); }
+    inline int16_t getLeftBackRpmActual() const  { return leftBackMotor.getShaftRPM(); }
+    inline int16_t getRightFrontRpmActual() const  { return rightFrontMotor.getShaftRPM(); }
+    inline int16_t getRightBackRpmActual() const  { return rightBackMotor.getShaftRPM(); }
     enum WheelRPMIndex
     {
         LF = 0,

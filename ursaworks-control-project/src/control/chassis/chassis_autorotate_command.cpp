@@ -98,7 +98,7 @@ void ChassisAutorotateCommand::execute()
             chassisAutorotating = false;
         }
 
-        desiredRotationAverage = drivers->remote.getWheel() / 660.0F * 6000;
+        desiredRotationAverage = drivers->remote.getChannel(tap::communication::serial::Remote::Channel::WHEEL) * 6000;
 
         if (chassisAutorotating)
         {

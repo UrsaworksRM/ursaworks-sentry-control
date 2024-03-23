@@ -146,10 +146,11 @@ xcysrc::control::turret::algorithms::ChassisFrameYawTurretController chassisFram
     turret.yawMotor,
     chassis_rel::YAW_PID_CONFIG);
 
-// algorithms::WorldFrameYawChassisImuTurretController worldFrameYawChassisImuController(
+// WorldFrameYawTurretImuCascadePidTurretController worldFrameYawChassisImuController(
 //     *drivers(),
 //     turret.yawMotor,
 //     world_rel_chassis_imu::YAW_PID_CONFIG);
+
 
 
 // turret commands
@@ -157,7 +158,7 @@ xcysrc::control::turret::user::TurretUserWorldRelativeCommand turretUserWorldRel
     drivers(),
     drivers()->controlOperatorInterface,
     &turret,
-    // &worldFrameYawChassisImuController,
+    //&worldFrameYawChassisImuController,
     &chassisFrameYawTurretController,
     &chassisFramePitchTurretController,
     0.02f,
@@ -206,7 +207,7 @@ xcysrc::control::turret::user::TurretUserWorldRelativeCommand turretUserWorldRel
 PressCommandMapping xPressed(
     drivers(),
     {&chassisAutorotateCommand},
-    RemoteMapState({tap::Remote::Key::X}));
+    RemoteMapState({tap::communication::serial::Remote::Key::X}));
 
 /* register subsystems here -------------------------------------------------*/
 void registerStandardSubsystems(Drivers *drivers)

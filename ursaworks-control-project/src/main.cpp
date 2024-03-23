@@ -86,12 +86,25 @@ static void initializePWM(tap::Drivers *drivers)
     drivers->pwm.write(0.06,pwmPin1);
     drivers->pwm.write(0.06,pwmPin2);
     modm::delay_ms(2000);
-    drivers->pwm.write(0.11,pwmPin1);
-    drivers->pwm.write(0.11,pwmPin2);
+    drivers->pwm.write(0.13,pwmPin1);
+    drivers->pwm.write(0.13,pwmPin2);
     modm::delay_ms(500);
     
 // every time robot got killed or power off, initialize the gpio again
 // better to make it to the button
+}
+
+static void flyingWheel(tap::Drivers *drivers)
+{
+    bool flyingwheelOn = (drivers->remote.getSwitch(tap::communication::serial::Remote::Switch::RIGHT_SWITCH) == tap::communication::serial::Remote::SwitchState::UP);
+    if(flyingwheelOn){
+        drivers->pwm.write(0.13,tap::gpio::Pwm::Pin::C1);
+        drivers->pwm.write(0.13,tap::gpio::Pwm::Pin::C2);
+    }
+    else{
+        drivers->pwm.write(0.0,tap::gpio::Pwm::Pin::C1);
+        drivers->pwm.write(0.0,tap::gpio::Pwm::Pin::C2);
+    }
 }
 
 
@@ -99,8 +112,8 @@ static void initializePWM(tap::Drivers *drivers)
 static void agitatorSpin(tap::Drivers *drivers)
 {
     /*tap::motor::DjiMotor agitatorMotor(::DoNotUse_getDrivers(), agitatorID, CAN_BUS,false,"cool motor"); */
-    bool spin = (drivers->remote.getSwitch(tap::Remote::Switch::LEFT_SWITCH) == tap::Remote::SwitchState::UP) || drivers->remote.getMouseL();
-    bool inv = (drivers->remote.getSwitch(tap::Remote::Switch::LEFT_SWITCH) == tap::Remote::SwitchState::DOWN) || drivers->remote.getMouseR();
+    bool spin = (drivers->remote.getSwitch(tap::communication::serial::Remote::Switch::LEFT_SWITCH) == tap::communication::serial::Remote::SwitchState::UP) || drivers->remote.getMouseL();
+    bool inv = (drivers->remote.getSwitch(tap::communication::serial::Remote::Switch::LEFT_SWITCH) == tap::communication::serial::Remote::SwitchState::DOWN) || drivers->remote.getMouseR();
     if(spin){
         agimotor.setDesiredOutput(static_cast<int32_t>(2000));  
     }
@@ -114,11 +127,17 @@ static void agitatorSpin(tap::Drivers *drivers)
 }
 
 static void rotate(tap::Drivers *drivers) {
-    float wheelInput = drivers->remote.getWheel() / 660.0F;
+    float wheelInput = drivers->remote.getChannel(tap::communication::serial::Remote::Channel::WHEEL);
     drivers->leds.set(tap::gpio::Leds::Blue, wheelInput > 0.8F);
     drivers->leds.set(tap::gpio::Leds::Red, wheelInput < -0.8F);
     l1.setDesiredOutput(static_cast<int16_t>(5000));
     drivers->djiMotorTxHandler.processCanSendData();
+}
+
+
+static void IMUData(tap::Drivers *drivers)
+{
+    float yaw = drivers->bmi088.getYaw();
 }
 
 
@@ -148,15 +167,22 @@ int main()
         PROFILE(drivers->profiler, updateIo, (drivers));
         if (sendMotorTimeout.execute())
         {
+            PROFILE(drivers->profiler, drivers->bmi088.periodicIMUUpdate, ());
             PROFILE(drivers->profiler, drivers->commandScheduler.run, ());
             PROFILE(drivers->profiler, drivers->djiMotorTxHandler.processCanSendData, ());
+            PROFILE(drivers->profiler, drivers->terminalSerial.update, ());
+
+
             agitatorSpin(drivers);
             rotate(drivers);
+            flyingWheel(drivers);
+            IMUData(drivers);
         }
         modm::delay_us(10);
     }
     return 0;
 }
+
 
 static void initializeIo(tap::Drivers *drivers)
 {
@@ -167,6 +193,7 @@ static void initializeIo(tap::Drivers *drivers)
     drivers->can.initialize();
     drivers->remote.initialize();
     drivers->refSerial.initialize();
+    drivers->bmi088.initialize(MAIN_LOOP_FREQUENCY, MAHONY_KP, 0.0f);
 }
 
 static void updateIo(tap::Drivers *drivers)
@@ -174,4 +201,5 @@ static void updateIo(tap::Drivers *drivers)
     drivers->canRxHandler.pollCanData();
     drivers->refSerial.updateSerial();
     drivers->remote.read();
+//    drivers->bmi088.update();
 }

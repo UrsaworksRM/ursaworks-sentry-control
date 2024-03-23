@@ -3140,8 +3140,8 @@ stm32l4s9vit6 ext\modm-devices\devices\stm32\stm32l4-s5_s7_s9.xml
 stm32l4s9zij6 ext\modm-devices\devices\stm32\stm32l4-s5_s7_s9.xml
 stm32l4s9zit6 ext\modm-devices\devices\stm32\stm32l4-s5_s7_s9.xml
 stm32l4s9ziy6 ext\modm-devices\devices\stm32\stm32l4-s5_s7_s9.xml
-/. 1de099c69c3ce7cbef42f6e06cc8bd95656a5685
-/ext/modm-devices fb53424861a6857109172d2f6d4153f2582aa11e
+/. None
+/ext/modm-devices None
 /ext\modm-devices\devices\avr\at90-32_64_128-can.xml 0997bbc87d6e294dfd2098339f556952
 /ext\modm-devices\devices\avr\atmega-1281_2561.xml 240d5f55bdb355b86c72584753c14ae9
 /ext\modm-devices\devices\avr\atmega-1284-n_p.xml b09bdb62b86ef70fcacb93f5df349ed9

@@ -67,10 +67,15 @@ void TurretUserControlCommand::execute()
         userPitchInputScalar * controlOperatorInterface.getTurretPitchInput(turretID);
     pitchController->runController(dt, pitchSetpoint);
 
+    // Get current world frame yaw angle from turret imu
+    float currYaw = drivers->bmi088.getYaw();
+
     const float yawSetpoint =
         yawController->getSetpoint() +
-        userYawInputScalar * controlOperatorInterface.getTurretYawInput(turretID) -
-        (drivers->remote.getWheel() / 660.0f / 89.0f);
+        userYawInputScalar * controlOperatorInterface.getTurretYawInput(turretID)
+        - (drivers->remote.getChannel(tap::communication::serial::Remote::Channel::WHEEL) / 89.0f);
+
+
     yawController->runController(dt, yawSetpoint);
 }
 

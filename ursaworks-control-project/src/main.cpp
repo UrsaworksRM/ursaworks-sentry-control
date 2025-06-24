@@ -90,7 +90,7 @@ static void initializePWM(tap::Drivers *drivers)
     drivers->pwm.write(0.13,pwmPin2);
     modm::delay_ms(500);
     
-// every time robot got killed or power off, initialize the gpio again
+// every time robot gets killed or power off, initialize the gpio again
 // better to make it to the button
 }
 

@@ -19,18 +19,17 @@
 
 
 #include "tap/board/board.hpp"
+#include "modm/platform/timer/timer_1.hpp"
 
 #include "modm/architecture/interface/delay.hpp"
+#include "modm/architecture/interface/interrupt.hpp"
 
 /* arch includes ------------------------------------------------------------*/
 #include "tap/architecture/periodic_timer.hpp"
 #include "tap/architecture/profiler.hpp"
 
-#include <cstdio>
-#include <cstring>
-
 /* communication includes ---------------------------------------------------*/
-#include "drivers_singleton.hpp"
+#include "src/drivers_singleton.hpp"
 
 /* error handling includes --------------------------------------------------*/
 #include "tap/errors/create_errors.hpp"
@@ -38,30 +37,15 @@
 /* control includes ---------------------------------------------------------*/
 #include "tap/architecture/clock.hpp"
 
-#include "robot/robot_control.hpp"
-#include "src/control/turret/turret_subsystem.hpp"
+#include "src/robot/robot_control.hpp"
 
-// AIM ASSIST DEFINITIONS
-static constexpr float AIM_ASSIST_SENSITIVITY = 0.05f;
-static constexpr float USER_OVERRIDE_THRESHOLD = 0.8f;
+#include "tap/communication/gpio/pwm.hpp"
 
-extern xcysrc::control::turret::TurretSubsystem turret;
+#include "taproot/src/tap/algorithms/smooth_pid.hpp"
 
-enum class ExternalCommsState
-{
-    WAITING_FOR_ACK,
-    RECEIVING_AIM_DATA
-};
+#include "taproot/src/tap/communication/serial/remote_serial_constants.hpp"
 
-static ExternalCommsState commsState = ExternalCommsState::WAITING_FOR_ACK;
-static tap::arch::PeriodicMilliTimer sendColorTimer(250); // Send color every 250ms until ACK
-static char uartBuffer[128];
-static uint8_t uartBufferIdx = 0;
-
-
-static void parseAndHandleSerial(tap::Drivers* drivers);
-static void handleAimAssist(tap::Drivers* drivers, float externalPitch, float externalYaw);
-// END AIM ASSIST DEFINITIONS
+#include "taproot/src/tap/communication/serial/remote.hpp"
 
 static constexpr float MAIN_LOOP_FREQUENCY = 500.0f;
 static constexpr float MAHONY_KP = 0.1f;
@@ -78,22 +62,87 @@ static void initializeIo(tap::Drivers *drivers);
 // called as frequently.
 static void updateIo(tap::Drivers *drivers);
 
-static void sendTeamColor(tap::Drivers* drivers)
+using namespace xcysrc::standard;
+
+static constexpr tap::motor::MotorId agitatorID = tap::motor::MOTOR7;
+static constexpr tap::can::CanBus CAN_BUS2 = tap::can::CanBus::CAN_BUS1;
+static constexpr int DESIRED_RPM =1000;
+tap::motor::DjiMotor agimotor(::DoNotUse_getDrivers(),agitatorID,CAN_BUS2,false,"cool motor");
+
+tap::motor::DjiMotor l1(::DoNotUse_getDrivers(),tap::motor::MOTOR1,CAN_BUS2,false,"cool motor");
+
+
+static void initializePWM(tap::Drivers *drivers)
 {
-    const auto& robotData = drivers->refSerial.getRobotData();
-    const char* teamColorString = "UNKNOWN\n";
-    if (robotData.robotId != tap::communication::serial::RefSerialData::RobotId::INVALID)
-    {
-        teamColorString = tap::communication::serial::RefSerialData::isBlueTeam(robotData.robotId) ? "BLUE\n" : "RED\n";
-    }
-    drivers->uart.write(tap::communication::serial::Uart::Uart1, reinterpret_cast<const uint8_t*>(teamColorString), strlen(teamColorString));
+    drivers->leds.set(tap::gpio::Leds::Blue, true);
+    modm::delay_ms(1000);
+    drivers->leds.set(tap::gpio::Leds::Blue, false);
+    tap::gpio::Pwm::Pin pwmPin1= tap::gpio::Pwm::Pin::C1;
+    drivers->pwm.setTimerFrequency(tap::gpio::Pwm::Timer::TIMER1, 100);
+    tap::gpio::Pwm::Pin pwmPin2= tap::gpio::Pwm::Pin::C2;
+    drivers->pwm.write(.2,pwmPin1);
+    drivers->pwm.write(.2,pwmPin2);
+    modm::delay_ms(2000);
+    drivers->pwm.write(0.06,pwmPin1);
+    drivers->pwm.write(0.06,pwmPin2);
+    modm::delay_ms(2000);
+    drivers->pwm.write(0.13,pwmPin1);
+    drivers->pwm.write(0.13,pwmPin2);
+    modm::delay_ms(500);
+    
+// every time the robot gets killed or powered off, initialize the gpio again
+// better to make it to the button
 }
 
-using namespace xcysrc::standard;
+static void flyingWheel(tap::Drivers *drivers)
+{
+    bool flyingwheelOn = (drivers->remote.getSwitch(tap::communication::serial::Remote::Switch::RIGHT_SWITCH) == tap::communication::serial::Remote::SwitchState::UP);
+    if(flyingwheelOn){
+        drivers->pwm.write(0.13,tap::gpio::Pwm::Pin::C1);
+        drivers->pwm.write(0.13,tap::gpio::Pwm::Pin::C2);
+    }
+    else{
+        drivers->pwm.write(0.0,tap::gpio::Pwm::Pin::C1);
+        drivers->pwm.write(0.0,tap::gpio::Pwm::Pin::C2);
+    }
+}
+
+
+
+static void agitatorSpin(tap::Drivers *drivers)
+{
+    /*tap::motor::DjiMotor agitatorMotor(::DoNotUse_getDrivers(), agitatorID, CAN_BUS,false,"cool motor"); */
+    bool spin = (drivers->remote.getSwitch(tap::communication::serial::Remote::Switch::LEFT_SWITCH) == tap::communication::serial::Remote::SwitchState::UP) || drivers->remote.getMouseL();
+    bool inv = (drivers->remote.getSwitch(tap::communication::serial::Remote::Switch::LEFT_SWITCH) == tap::communication::serial::Remote::SwitchState::DOWN) || drivers->remote.getMouseR();
+    if(spin){
+        agimotor.setDesiredOutput(static_cast<int32_t>(2000));  
+    }
+    else if(inv){
+        agimotor.setDesiredOutput(static_cast<int32_t>(-2000));  
+    }
+    else{
+        agimotor.setDesiredOutput(static_cast<int32_t>(0));  
+    }
+    drivers->djiMotorTxHandler.processCanSendData();
+}
+
+static void rotate(tap::Drivers *drivers) {
+    float wheelInput = drivers->remote.getChannel(tap::communication::serial::Remote::Channel::WHEEL);
+    drivers->leds.set(tap::gpio::Leds::Blue, wheelInput > 0.8F);
+    drivers->leds.set(tap::gpio::Leds::Red, wheelInput < -0.8F);
+    l1.setDesiredOutput(static_cast<int16_t>(5000));
+    drivers->djiMotorTxHandler.processCanSendData();
+}
+
+
+static void IMUData(tap::Drivers *drivers)
+{
+    float yaw = drivers->bmi088.getYaw();
+}
+
 
 int main()
 {
-
     /*
      * NOTE: We are using DoNotUse_getDrivers here because in the main
      *      robot loop we must access the singleton drivers to update
@@ -109,27 +158,31 @@ int main()
     initSubsystemCommands(drivers);
     drivers->leds.set(tap::gpio::Leds::Green, true);
     modm::delay_ms(1000);
-    drivers->leds.set(tap::gpio::Leds::Green, false);
-
+    drivers->leds.set(tap::gpio::Leds::Green, false);   
+    agimotor.initialize();
+    initializePWM(drivers); 
     while (1)
     {
         // do this as fast as you can
         PROFILE(drivers->profiler, updateIo, (drivers));
-
-        if (commsState == ExternalCommsState::WAITING_FOR_ACK && drivers->refSerial.getRefSerialReceivingData() && sendColorTimer.execute())
-        {
-            sendTeamColor(drivers);
-        }
-
         if (sendMotorTimeout.execute())
         {
+            PROFILE(drivers->profiler, drivers->bmi088.periodicIMUUpdate, ());
             PROFILE(drivers->profiler, drivers->commandScheduler.run, ());
             PROFILE(drivers->profiler, drivers->djiMotorTxHandler.processCanSendData, ());
+            PROFILE(drivers->profiler, drivers->terminalSerial.update, ());
+
+
+            agitatorSpin(drivers);
+            rotate(drivers);
+            flyingWheel(drivers);
+            IMUData(drivers);
         }
         modm::delay_us(10);
     }
     return 0;
 }
+
 
 static void initializeIo(tap::Drivers *drivers)
 {
@@ -140,7 +193,7 @@ static void initializeIo(tap::Drivers *drivers)
     drivers->can.initialize();
     drivers->remote.initialize();
     drivers->refSerial.initialize();
-    drivers->uart.init<tap::communication::serial::Uart::Uart1, 9600>();
+    drivers->bmi088.initialize(MAIN_LOOP_FREQUENCY, MAHONY_KP, 0.0f);
 }
 
 static void updateIo(tap::Drivers *drivers)
@@ -148,69 +201,5 @@ static void updateIo(tap::Drivers *drivers)
     drivers->canRxHandler.pollCanData();
     drivers->refSerial.updateSerial();
     drivers->remote.read();
-
-    uint8_t byte;
-    while(drivers->uart.read(tap::communication::serial::Uart::Uart1, &byte, 1))
-    {
-        if (byte == '\n' || uartBufferIdx == sizeof(uartBuffer) - 1)
-        {
-            uartBuffer[uartBufferIdx] = '\0';
-            parseAndHandleSerial(drivers);
-            uartBufferIdx = 0;
-        }
-        else
-        {
-            uartBuffer[uartBufferIdx++] = byte;
-        }
-    }
-}
-
-static void parseAndHandleSerial(tap::Drivers* drivers)
-{
-    if (commsState == ExternalCommsState::WAITING_FOR_ACK)
-    {
-        if (strcmp(uartBuffer, "ACK") == 0)
-        {
-            commsState = ExternalCommsState::RECEIVING_AIM_DATA;
-        }
-    }
-    else if (commsState == ExternalCommsState::RECEIVING_AIM_DATA)
-    {
-        float pitch, yaw;
-        if (sscanf(uartBuffer, "P%fY%f", &pitch, &yaw) == 2)
-        {
-            handleAimAssist(drivers, pitch, yaw);
-        }
-    }
-}
-
-static void handleAimAssist(tap::Drivers* drivers, float externalPitch, float externalYaw)
-{
-    // Get user input from remote
-    float userPitch = drivers->remote.getChannel(tap::communication::serial::Remote::Channel::RIGHT_VERTICAL);
-    float userYaw = drivers->remote.getChannel(tap::communication::serial::Remote::Channel::RIGHT_HORIZONTAL);
-
-    float finalPitch = turret.pitchMotor.getChassisFrameSetpoint();
-    float finalYaw = turret.yawMotor.getChassisFrameSetpoint();
-
-    // --- Pitch Calculation ---
-    // If user input is strong, override aim assist
-    if (fabs(userPitch) > USER_OVERRIDE_THRESHOLD) {
-        finalPitch += userPitch * AIM_ASSIST_SENSITIVITY;
-    } else {
-        // Otherwise, blend user input with external aim assist
-        float pitchError = externalPitch - turret.pitchMotor.getChassisFrameUnwrappedMeasuredAngle();
-        finalPitch = turret.pitchMotor.getChassisFrameUnwrappedMeasuredAngle() + pitchError + (userPitch * AIM_ASSIST_SENSITIVITY);
-    }
-    
-    // --- Yaw Calculation ---
-    if (fabs(userYaw) > USER_OVERRIDE_THRESHOLD) {
-        finalYaw += userYaw * AIM_ASSIST_SENSITIVITY;
-    } else {
-        float yawError = externalYaw - turret.yawMotor.getChassisFrameUnwrappedMeasuredAngle();
-        finalYaw = turret.yawMotor.getChassisFrameUnwrappedMeasuredAngle() + yawError + (userYaw * AIM_ASSIST_SENSITIVITY);
-    }
-    
-    turret.pitchMotor.setChassisFrameSetpoint(finalPitch);
-    turret.yawMotor.setChassisFrameSetpoint(finalYaw);
+//    drivers->bmi088.update();
 }
